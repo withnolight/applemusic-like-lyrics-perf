@@ -17,6 +17,15 @@ export abstract class LyricLineGroupBase<
 {
 	protected abstract readonly lyricPlayer: LyricPlayerFlags;
 
+	/**
+	 * 歌词组在播放器排序后的稳定索引。
+	 *
+	 * 由播放器重建视图时写入，供逐帧布局和可见性判断直接读取，
+	 * 避免在热路径中反复扫描 `currentLyricGroups`。
+	 * @internal
+	 */
+	public groupIndex = -1;
+
 	public posY: Spring = new Spring(0);
 	public bgSlideY: Spring = new Spring(-80);
 	public top = 0;

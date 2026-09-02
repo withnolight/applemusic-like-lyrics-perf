@@ -192,7 +192,6 @@ export abstract class LyricPlayerBase
 		damping: 20,
 		stiffness: 50,
 	};
-	private lyricGroupIndexMap = new WeakMap<LyricLineGroupBase, number>();
 	private onPageShow = () => {
 		this.isPageVisible = true;
 		this.setCurrentTime(this.getCurrentTime(), true);
@@ -242,7 +241,7 @@ export abstract class LyricPlayerBase
 							this.lyricGroupSize.set(groupObj, newSize);
 							groupObj.onLineSizeChange(newSize);
 
-							const index = this.lyricGroupIndexMap.get(groupObj) ?? -1;
+							const index = groupObj.groupIndex;
 							if (index !== -1) {
 								this.layoutCalculator.setLineHeight(index, newSize[1]);
 							}
@@ -764,7 +763,7 @@ export abstract class LyricPlayerBase
 			MediaTime.cmp(a.startTime, b.startTime),
 		);
 		for (let i = 0; i < this.currentLyricGroups.length; i++) {
-			this.lyricGroupIndexMap.set(this.currentLyricGroups[i], i);
+			this.currentLyricGroups[i].groupIndex = i;
 		}
 
 		const bounds = this.currentLyricGroups.map((group) => ({

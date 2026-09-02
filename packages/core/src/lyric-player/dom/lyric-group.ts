@@ -42,10 +42,9 @@ export class LyricLineGroup extends LyricLineGroupBase<LyricLineEl> {
 	get isInSight(): boolean {
 		const t = this.posY.getCurrentPosition();
 
-		const index = this.lyricPlayer.currentLyricGroups.indexOf(this);
 		const h =
-			index !== -1
-				? this.lyricPlayer.getLineHeight(index)
+			this.groupIndex !== -1
+				? this.lyricPlayer.getLineHeight(this.groupIndex)
 				: this.lyricPlayer.defaultLineHeight;
 
 		const pb = this.lyricPlayer.size[1];
@@ -58,7 +57,7 @@ export class LyricLineGroup extends LyricLineGroupBase<LyricLineEl> {
 		if (!this.element.parentElement) {
 			const playerEl = this.lyricPlayer.getElement();
 			const groups = this.lyricPlayer.currentLyricGroups;
-			const myIndex = groups.indexOf(this);
+			const myIndex = this.groupIndex;
 
 			let referenceNode: HTMLElement | null = null;
 			if (myIndex !== -1) {
