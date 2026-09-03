@@ -14,6 +14,7 @@ import {
 	LayoutAlignAnchor,
 	LayoutReason,
 	LayoutReasonStrategyMap,
+	LyricPlayerEvent,
 	type MaskObsceneWordsMode,
 } from "./consts.ts";
 import { FocusController } from "./focus.ts";
@@ -195,6 +196,7 @@ export abstract class LyricPlayerBase
 	private onPageShow = () => {
 		this.isPageVisible = true;
 		this.setCurrentTime(this.getCurrentTime(), true);
+		this.requestUpdate();
 	};
 	private onPageHide = () => {
 		this.isPageVisible = false;
@@ -972,6 +974,15 @@ export abstract class LyricPlayerBase
 			strategy.snapPosY,
 			delay,
 		);
+
+		this.requestUpdate();
+	}
+
+	/**
+	 * 通知绑定层布局或动画状态已经变化，需要唤醒逐帧更新。
+	 */
+	protected requestUpdate(): void {
+		this.dispatchEvent(new Event(LyricPlayerEvent.UpdateRequested));
 	}
 
 	/**
@@ -1121,6 +1132,29 @@ export abstract class LyricPlayerBase
 		const d = Duration.fromMillis(delta);
 		this.bottomLine.update(d);
 		this.interludeDots.update(d);
+	}
+
+	/**
+	 * 当前是否仍有需要由 {@link update} 推进的动画。
+	 *
+	 * 绑定层可在每帧更新后据此停止空闲的 requestAnimationFrame，并通过
+	 * {@link LyricPlayerEvent.UpdateRequested} 在状态变化时重新唤醒。
+	 */
+	getNeedsUpdate(): boolean {
+		if (!this.isPageVisible) return false;
+
+		if (this.getEnableSpring()) {
+			if (!this.bottomLine.lineTransforms.posY.arrived()) return true;
+			for (const group of this.currentLyricGroups) {
+				if (group.getNeedsUpdate()) return true;
+			}
+		}
+
+		return (
+			this.interludeDots.getNeedsUpdate?.() ??
+			(this.isPlaying &&
+				this.timelineController.getSnapshot().activeInterlude !== undefined)
+		);
 	}
 
 	protected onResize(): void {}

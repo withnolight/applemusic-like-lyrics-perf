@@ -8,6 +8,7 @@ import type {
 import {
 	LyricPlayer as DefaultLyricPlayer,
 	LayoutReason,
+	LyricPlayerEvent,
 	MaskObsceneWordsMode,
 } from "@applemusic-like-lyrics/core";
 import {
@@ -259,25 +260,47 @@ export const LyricPlayer: ForwardRefExoticComponent<
 		]);
 
 		useEffect(() => {
-			if (!disabled) {
-				let canceled = false;
-				let lastTime = -1;
-				const onFrame = (time: number) => {
-					if (canceled) return;
-					if (lastTime === -1) {
-						lastTime = time;
-					}
-					corePlayer?.update(time - lastTime);
-					lastTime = time;
-					requestAnimationFrame(onFrame);
-				};
-				corePlayer?.calcLayout(LayoutReason.ConfigChange);
-				requestAnimationFrame(onFrame);
-				return () => {
-					canceled = true;
-				};
-			}
-			return;
+			if (disabled || !corePlayer) return;
+
+			let canceled = false;
+			let frameId: number | undefined;
+			let lastTime = -1;
+
+			const requestFrame = () => {
+				if (!canceled && frameId === undefined) {
+					frameId = requestAnimationFrame(onFrame);
+				}
+			};
+			const onFrame = (time: number) => {
+				frameId = undefined;
+				if (canceled) return;
+
+				const delta = lastTime === -1 ? 0 : time - lastTime;
+				lastTime = time;
+				corePlayer.update(delta);
+
+				if (corePlayer.getNeedsUpdate()) {
+					requestFrame();
+				} else {
+					lastTime = -1;
+				}
+			};
+
+			corePlayer.addEventListener(
+				LyricPlayerEvent.UpdateRequested,
+				requestFrame,
+			);
+			corePlayer.calcLayout(LayoutReason.ConfigChange);
+			requestFrame();
+
+			return () => {
+				canceled = true;
+				corePlayer.removeEventListener(
+					LyricPlayerEvent.UpdateRequested,
+					requestFrame,
+				);
+				if (frameId !== undefined) cancelAnimationFrame(frameId);
+			};
 		}, [corePlayer, disabled]);
 
 		useEffect(() => {

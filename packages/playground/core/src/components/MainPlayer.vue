@@ -2,6 +2,7 @@
 import {
 	DomLyricPlayer,
 	type LyricLineMouseEvent,
+	LyricPlayerEvent,
 } from "@applemusic-like-lyrics/core";
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { extractSongwriters, parseLyricSource } from "@/lib/parse-lyric";
@@ -101,6 +102,7 @@ function applyPlayback(playing: boolean): void {
 
 	lyricPlayer?.resume();
 	void audioRuntime.setPlaying(true);
+	startFrameLoop();
 }
 
 function seekCoreToStoreTime(): void {
@@ -109,24 +111,30 @@ function seekCoreToStoreTime(): void {
 	lyricPlayerRef.value?.setCurrentTime(Math.round(currentTime * 1000), true);
 }
 
-function startFrameLoop(): void {
-	const onFrame = (time: number) => {
-		if (lastFrameTime === -1) lastFrameTime = time;
-		const delta = time - lastFrameTime;
-		const lyricPlayer = lyricPlayerRef.value;
+function onFrame(time: number): void {
+	frameId = 0;
+	if (lastFrameTime === -1) lastFrameTime = time;
+	const delta = time - lastFrameTime;
+	const lyricPlayer = lyricPlayerRef.value;
 
-		if (!audioRuntime.isPaused) {
-			const currentTime = audioRuntime.currentTime;
-			player.syncCurrentTime(currentTime);
-			lyricPlayer?.setCurrentTime(Math.round(currentTime * 1000));
-		}
+	if (!audioRuntime.isPaused) {
+		const currentTime = audioRuntime.currentTime;
+		player.syncCurrentTime(currentTime);
+		lyricPlayer?.setCurrentTime(Math.round(currentTime * 1000));
+	}
 
-		lyricPlayer?.update(delta);
-		lastFrameTime = time;
+	lyricPlayer?.update(delta);
+	lastFrameTime = time;
+
+	if (!audioRuntime.isPaused || lyricPlayer?.getNeedsUpdate()) {
 		frameId = requestAnimationFrame(onFrame);
-	};
+	} else {
+		lastFrameTime = -1;
+	}
+}
 
-	frameId = requestAnimationFrame(onFrame);
+function startFrameLoop(): void {
+	if (!frameId) frameId = requestAnimationFrame(onFrame);
 }
 
 function stopFrameLoop(): void {
@@ -141,6 +149,10 @@ function onLineClick(event: Event): void {
 	event.stopPropagation();
 	event.stopImmediatePropagation();
 	player.seek(lineEvent.line.getLine().startTime / 1000);
+}
+
+function onUpdateRequested(): void {
+	startFrameLoop();
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -184,6 +196,10 @@ onMounted(() => {
 
 	const lyricPlayer = new DomLyricPlayer();
 	lyricPlayer.addEventListener("line-click", onLineClick);
+	lyricPlayer.addEventListener(
+		LyricPlayerEvent.UpdateRequested,
+		onUpdateRequested,
+	);
 	host.appendChild(lyricPlayer.getElement());
 	lyricPlayerRef.value = lyricPlayer;
 
@@ -201,6 +217,10 @@ onBeforeUnmount(() => {
 	window.removeEventListener("keydown", onGlobalKeyDown);
 
 	lyricPlayerRef.value?.removeEventListener("line-click", onLineClick);
+	lyricPlayerRef.value?.removeEventListener(
+		LyricPlayerEvent.UpdateRequested,
+		onUpdateRequested,
+	);
 	lyricPlayerRef.value?.dispose();
 });
 

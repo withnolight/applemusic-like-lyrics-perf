@@ -142,6 +142,17 @@ export abstract class LyricLineGroupBase<
 		this.bgLine?.update(delta);
 	}
 
+	/** 当前组是否仍有需要逐帧推进的弹簧动画 */
+	getNeedsUpdate(): boolean {
+		return (
+			this.lyricPlayer.getEnableSpring() &&
+			(!this.posY.arrived() ||
+				!this.bgSlideY.arrived() ||
+				this.mainLine.getNeedsUpdate() ||
+				(this.bgLine?.getNeedsUpdate() ?? false))
+		);
+	}
+
 	commitChanges(): void {
 		if (!this.isInSight) return;
 		if (this.isUiDirty) {

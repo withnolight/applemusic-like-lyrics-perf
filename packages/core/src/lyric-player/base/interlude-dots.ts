@@ -37,4 +37,7 @@ export interface InterludeDots extends HasElement, Disposable {
 	 * @param delta 距离上一次调用的时长
 	 */
 	update(delta?: Duration): void;
+
+	/** 当前是否仍有需要逐帧推进的动画 */
+	getNeedsUpdate?(): boolean;
 }

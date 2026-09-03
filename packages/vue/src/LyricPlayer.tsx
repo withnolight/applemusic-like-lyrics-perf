@@ -4,6 +4,7 @@ import {
 	type LyricLine,
 	type LyricLineMouseEvent,
 	type LyricPlayerBase,
+	LyricPlayerEvent,
 	MaskObsceneWordsMode,
 	type OptimizeLyricOptions,
 	type spring,
@@ -258,23 +259,47 @@ export const LyricPlayer = defineComponent({
 		});
 
 		watchEffect((onCleanup) => {
-			if (!props.disabled) {
-				let canceled = false;
-				let lastTime = -1;
-				const onFrame = (time: number) => {
-					if (canceled) return;
-					if (lastTime === -1) {
-						lastTime = time;
-					}
-					playerRef.value?.update(time - lastTime);
-					lastTime = time;
-					requestAnimationFrame(onFrame);
-				};
-				requestAnimationFrame(onFrame);
-				onCleanup(() => {
-					canceled = true;
-				});
-			}
+			const lyricPlayer = playerRef.value;
+			if (props.disabled || !lyricPlayer) return;
+
+			let canceled = false;
+			let frameId: number | undefined;
+			let lastTime = -1;
+
+			const requestFrame = () => {
+				if (!canceled && frameId === undefined) {
+					frameId = requestAnimationFrame(onFrame);
+				}
+			};
+			const onFrame = (time: number) => {
+				frameId = undefined;
+				if (canceled) return;
+
+				const delta = lastTime === -1 ? 0 : time - lastTime;
+				lastTime = time;
+				lyricPlayer.update(delta);
+
+				if (lyricPlayer.getNeedsUpdate()) {
+					requestFrame();
+				} else {
+					lastTime = -1;
+				}
+			};
+
+			lyricPlayer.addEventListener(
+				LyricPlayerEvent.UpdateRequested,
+				requestFrame,
+			);
+			requestFrame();
+
+			onCleanup(() => {
+				canceled = true;
+				lyricPlayer.removeEventListener(
+					LyricPlayerEvent.UpdateRequested,
+					requestFrame,
+				);
+				if (frameId !== undefined) cancelAnimationFrame(frameId);
+			});
 		});
 
 		watch(

@@ -229,6 +229,15 @@ export class InterludeDotsEl implements InterludeDots {
 		}
 	}
 
+	/** 当前是否仍处于需要逐帧推进的间奏动画区间 */
+	public getNeedsUpdate(): boolean {
+		return (
+			this.playing &&
+			this.currentInterlude !== undefined &&
+			MediaTime.cmp(this.currentTime, this.currentInterlude[1]) <= 0
+		);
+	}
+
 	public dispose(): void {
 		this.element.remove();
 	}

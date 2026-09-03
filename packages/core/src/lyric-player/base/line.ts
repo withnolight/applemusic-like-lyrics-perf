@@ -86,5 +86,11 @@ export abstract class LyricLineBase extends EventTarget implements Disposable {
 		);
 	}
 	abstract update(delta?: Duration): void;
+
+	/** 当前行是否仍有需要逐帧推进的弹簧动画 */
+	getNeedsUpdate(): boolean {
+		return !this.lineTransforms.scale.arrived();
+	}
+
 	dispose(): void {}
 }

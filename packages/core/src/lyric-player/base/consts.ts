@@ -65,6 +65,15 @@ export const LayoutReason = {
 /** 触发排版布局更新的原因场景枚举类型，见 {@link LayoutReason} */
 export type LayoutReason = ValueOf<typeof LayoutReason>;
 
+/** 歌词播放器向外部发出的事件名称 */
+export const LyricPlayerEvent = {
+	/** 布局或动画状态发生变化，需要至少执行一次播放器 update */
+	UpdateRequested: "update-request",
+} as const;
+
+/** 歌词播放器事件名称类型，见 {@link LyricPlayerEvent} */
+export type LyricPlayerEvent = ValueOf<typeof LyricPlayerEvent>;
+
 /**
  * 对应各个 LayoutReason 的排版执行策略定义
  */
