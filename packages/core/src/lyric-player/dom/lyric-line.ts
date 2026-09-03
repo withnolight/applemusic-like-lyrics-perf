@@ -920,15 +920,16 @@ export class LyricLineEl extends LyricLineBase {
 		blur = 0,
 		delay: Duration = Duration.ZERO,
 		mode: LyricLineRenderMode = LyricLineRenderMode.SOLID,
+		immediate = false,
 	): void {
-		super.setTransform(scale, opacity, blur, delay);
+		super.setTransform(scale, opacity, blur, delay, mode, immediate);
 
 		this.setRenderMode(mode);
 		this.top = 0;
 		this.scale = scale;
 		this.delay = delay;
 
-		if (this.lyricPlayer.getEnableSpring()) {
+		if (this.lyricPlayer.getEnableSpring() && !immediate) {
 			this.lineTransforms.scale.setTargetPosition(scale);
 		} else {
 			this.lineTransforms.scale.setPosition(scale);

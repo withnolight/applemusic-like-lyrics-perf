@@ -90,13 +90,19 @@ export interface RenderInstruction {
  */
 export interface LayoutResult {
 	/**
-	 * 本次排版计算的有效歌词行数
+	 * 本次排版计算需要更新的歌词行数
 	 */
 	lineCount: number;
 
+	/** 需要更新的第一行歌词索引 */
+	lineStart: number;
+
+	/** 需要更新的末行歌词索引（不包含） */
+	lineEnd: number;
+
 	/**
-	 * 对应所有歌词行的渲染指令池
-	 * @remarks 指令池由 LayoutCalculator 复用，遍历时务必以 {@link lineCount} 为界
+	 * 以全局歌词行索引寻址的渲染指令池
+	 * @remarks 指令池由 LayoutCalculator 复用，只有 `[lineStart, lineEnd)` 区间在当前帧有效
 	 */
 	readonly lineInstructions: ReadonlyArray<RenderInstruction>;
 
@@ -188,6 +194,8 @@ export class LayoutCalculator {
 	 */
 	private readonly layoutResult: LayoutResult = {
 		lineCount: 0,
+		lineStart: 0,
+		lineEnd: 0,
 		lineInstructions: this.instructionPool,
 		bottomLineY: 0,
 		isBottomLineInViewport: false,
@@ -365,8 +373,6 @@ export class LayoutCalculator {
 			return this.resetLayoutResult();
 		}
 
-		this.layoutResult.lineCount = this.lyricCount;
-
 		const {
 			focalTopY,
 			anchorOffset,
@@ -385,19 +391,36 @@ export class LayoutCalculator {
 		const viewportTopBound = -overscanPx - motionBuffer;
 		const viewportBottomBound = containerHeight + overscanPx + motionBuffer;
 
-		for (let i = 0; i < this.lyricCount; i++) {
-			const instruction = this.instructionPool[i];
-			let lineY = viewportStartY + this.prefixSums[i];
-			const lineH = this.prefixSums[i + 1] - this.prefixSums[i];
+		const lineStart = this.findFirstLineWhoseBottomReaches(
+			viewportTopBound,
+			viewportStartY,
+			activeInterludeAnchor,
+			interludeTotalHeight,
+		);
+		const lineEnd = this.findFirstLineWhoseTopExceeds(
+			viewportBottomBound,
+			viewportStartY,
+			activeInterludeAnchor,
+			interludeTotalHeight,
+		);
 
-			if (activeInterludeAnchor !== undefined && i > activeInterludeAnchor) {
-				lineY += interludeTotalHeight;
-			}
+		this.layoutResult.lineStart = lineStart;
+		this.layoutResult.lineEnd = lineEnd;
+		this.layoutResult.lineCount = lineEnd - lineStart;
+
+		for (let i = lineStart; i < lineEnd; i++) {
+			const instruction = this.instructionPool[i];
+			const lineY = this.getLineTop(
+				i,
+				viewportStartY,
+				activeInterludeAnchor,
+				interludeTotalHeight,
+			);
+			const lineH = this.prefixSums[i + 1] - this.prefixSums[i];
 
 			instruction.y = lineY;
 			instruction.height = lineH;
-			instruction.isInViewport =
-				lineY <= viewportBottomBound && lineY + lineH >= viewportTopBound;
+			instruction.isInViewport = true;
 		}
 
 		if (activeInterludeAnchor !== undefined) {
@@ -460,6 +483,70 @@ export class LayoutCalculator {
 		}
 		this.totalLyricHeight = sum;
 		this.isPrefixSumDirty = false;
+	}
+
+	/** 获取一行在当前帧中的绝对顶部坐标 */
+	private getLineTop(
+		index: number,
+		viewportStartY: number,
+		activeInterludeAnchor: number | undefined,
+		interludeTotalHeight: number,
+	): number {
+		return (
+			viewportStartY +
+			this.prefixSums[index] +
+			(activeInterludeAnchor !== undefined && index > activeInterludeAnchor
+				? interludeTotalHeight
+				: 0)
+		);
+	}
+
+	/** 二分查找第一条底边到达可更新区域顶部的歌词行 */
+	private findFirstLineWhoseBottomReaches(
+		bound: number,
+		viewportStartY: number,
+		activeInterludeAnchor: number | undefined,
+		interludeTotalHeight: number,
+	): number {
+		let low = 0;
+		let high = this.lyricCount;
+		while (low < high) {
+			const mid = (low + high) >>> 1;
+			const bottom =
+				this.getLineTop(
+					mid,
+					viewportStartY,
+					activeInterludeAnchor,
+					interludeTotalHeight,
+				) +
+				(this.prefixSums[mid + 1] - this.prefixSums[mid]);
+			if (bottom >= bound) high = mid;
+			else low = mid + 1;
+		}
+		return low;
+	}
+
+	/** 二分查找第一条顶边越过可更新区域底部的歌词行 */
+	private findFirstLineWhoseTopExceeds(
+		bound: number,
+		viewportStartY: number,
+		activeInterludeAnchor: number | undefined,
+		interludeTotalHeight: number,
+	): number {
+		let low = 0;
+		let high = this.lyricCount;
+		while (low < high) {
+			const mid = (low + high) >>> 1;
+			const top = this.getLineTop(
+				mid,
+				viewportStartY,
+				activeInterludeAnchor,
+				interludeTotalHeight,
+			);
+			if (top > bound) high = mid;
+			else low = mid + 1;
+		}
+		return low;
 	}
 
 	/**
@@ -570,16 +657,12 @@ export class LayoutCalculator {
 	 */
 	private resetLayoutResult(): LayoutResult {
 		this.layoutResult.lineCount = 0;
+		this.layoutResult.lineStart = 0;
+		this.layoutResult.lineEnd = 0;
 		this.layoutResult.hasInterlude = false;
 		this.layoutResult.interludeY = 0;
 		this.layoutResult.bottomLineY = 0;
 		this.layoutResult.isBottomLineInViewport = false;
-
-		for (let i = 0; i < this.instructionPool.length; i++) {
-			this.instructionPool[i].isInViewport = false;
-			this.instructionPool[i].y = 0;
-			this.instructionPool[i].height = 0;
-		}
 
 		return this.layoutResult;
 	}

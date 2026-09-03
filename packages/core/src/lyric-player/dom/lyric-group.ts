@@ -59,12 +59,18 @@ export class LyricLineGroup extends LyricLineGroupBase<LyricLineEl> {
 			const groups = this.lyricPlayer.currentLyricGroups;
 			const myIndex = this.groupIndex;
 
-			let referenceNode: HTMLElement | null = null;
+			let referenceNode: ChildNode | null = null;
 			if (myIndex !== -1) {
-				for (let i = myIndex + 1; i < groups.length; i++) {
-					if (groups[i].element.parentElement === playerEl) {
-						referenceNode = groups[i].element;
-						break;
+				const previousGroup = groups[myIndex - 1];
+				if (previousGroup?.element.parentElement === playerEl) {
+					referenceNode = previousGroup.element.nextSibling;
+				} else {
+					for (let i = myIndex + 1; i < groups.length; i++) {
+						if (!groups[i].isInLayoutWindow) break;
+						if (groups[i].element.parentElement === playerEl) {
+							referenceNode = groups[i].element;
+							break;
+						}
 					}
 				}
 			}
@@ -89,6 +95,11 @@ export class LyricLineGroup extends LyricLineGroupBase<LyricLineEl> {
 			}
 			this.element.remove();
 		}
+	}
+
+	override leaveLayoutWindow(): void {
+		super.leaveLayoutWindow();
+		this.hide();
 	}
 
 	override update(delta: Duration = Duration.ZERO): void {

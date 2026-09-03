@@ -66,6 +66,13 @@ export class Spring {
 		this.getV = () => 0;
 		this.getV2 = () => 0;
 	}
+	/** 立即结束当前动画以及尚未触发的延迟目标 */
+	finish(): void {
+		const finalPosition = this.queuePosition?.position ?? this.targetPosition;
+		this.queueParams = undefined;
+		this.queuePosition = undefined;
+		this.setPosition(finalPosition);
+	}
 	update(delta: Duration = Duration.ZERO): void {
 		const dt = Duration.asSecsF64(delta);
 		this.currentTime += dt;

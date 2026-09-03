@@ -56,6 +56,7 @@ export abstract class LyricLineBase extends EventTarget implements Disposable {
 		blur: number = this.blur,
 		delay: Duration = Duration.ZERO,
 		_mode: LyricLineRenderMode = LyricLineRenderMode.SOLID,
+		_immediate = false,
 	): void {
 		this.scale = scale;
 		this.opacity = opacity;
@@ -90,6 +91,12 @@ export abstract class LyricLineBase extends EventTarget implements Disposable {
 	/** 当前行是否仍有需要逐帧推进的弹簧动画 */
 	getNeedsUpdate(): boolean {
 		return !this.lineTransforms.scale.arrived();
+	}
+
+	/** 立即结束由逐帧更新驱动的动画 */
+	finishAnimations(): void {
+		this.lineTransforms.scale.finish();
+		this.isUiDirty = true;
 	}
 
 	dispose(): void {}

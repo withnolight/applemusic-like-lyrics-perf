@@ -150,6 +150,10 @@ export abstract class LyricPlayerBase
 	};
 
 	protected layoutCalculator: LayoutCalculator = new LayoutCalculator();
+	/** 当前由布局计算器选出的活动歌词窗口 `[start, end)` */
+	protected layoutWindowStart = 0;
+	protected layoutWindowEnd = 0;
+	private hasCompletedInitialLayout = false;
 	private focusController: FocusController = new FocusController();
 
 	public currentLyricGroups: LyricLineGroupBase[] = [];
@@ -157,9 +161,11 @@ export abstract class LyricPlayerBase
 	readonly size: [number, number] = [0, 0];
 	protected isPageVisible = true;
 
-	/** 默认/回退单行歌词估算高度基准 (containerHeight / 5) */
+	/** 默认/回退单行歌词估算高度基准 */
 	public get defaultLineHeight(): number {
-		return this.size[1] / 5;
+		if (this.size[1] > 0) return this.size[1] / 5;
+		const fontSize = this.baseFontSize;
+		return (Number.isFinite(fontSize) && fontSize > 0 ? fontSize : 24) * 1.5;
 	}
 
 	/**
@@ -755,6 +761,9 @@ export abstract class LyricPlayerBase
 			group.dispose();
 		}
 		this.currentLyricGroups = [];
+		this.layoutWindowStart = 0;
+		this.layoutWindowEnd = 0;
+		this.hasCompletedInitialLayout = false;
 
 		this.interludeDots.setInterlude(undefined);
 
@@ -782,6 +791,7 @@ export abstract class LyricPlayerBase
 		this.seekDetector.reset();
 		this.setCurrentTime(initialTime, true);
 		this.calcLayout(LayoutReason.RebuildView);
+		this.hasCompletedInitialLayout = true;
 
 		if (import.meta.env.DEV) {
 			console.log("歌词视图重建完成", this);
@@ -892,6 +902,28 @@ export abstract class LyricPlayerBase
 		// 让 LayoutCalculator 算出各个排版信息
 		const result = this.layoutCalculator.commit(session, ctx.scrollOffset);
 
+		const previousWindowStart = this.layoutWindowStart;
+		const previousWindowEnd = this.layoutWindowEnd;
+		const nextWindowStart = result.lineStart;
+		const nextWindowEnd = result.lineEnd;
+
+		for (let i = previousWindowStart; i < previousWindowEnd; i++) {
+			if (i < nextWindowStart || i >= nextWindowEnd) {
+				this.currentLyricGroups[i]?.leaveLayoutWindow();
+			}
+		}
+		for (let i = nextWindowStart; i < nextWindowEnd; i++) {
+			if (i < previousWindowStart || i >= previousWindowEnd) {
+				const group = this.currentLyricGroups[i];
+				if (group) {
+					group.enterLayoutWindow();
+					this.applySpringParamsToGroup(group);
+				}
+			}
+		}
+		this.layoutWindowStart = nextWindowStart;
+		this.layoutWindowEnd = nextWindowEnd;
+
 		// 检查是否需要显示间奏点
 		if (result.hasInterlude && interlude) {
 			const nextLineIndex = interlude.anchorLineIndex + 1;
@@ -924,28 +956,30 @@ export abstract class LyricPlayerBase
 		visual.isNarrowViewport = window.innerWidth <= 1024;
 
 		// 遍历 LayoutCalculator 算出的排版信息并应用视觉效果
-		const activeCount = result.lineCount;
-
 		let delay = Duration.ZERO;
 		let baseDelay = strategy.disableStagger
 			? Duration.ZERO
 			: Duration.fromSecs(0.05);
 
-		for (let i = 0; i < activeCount; i++) {
+		for (let i = nextWindowStart; i < nextWindowEnd; i++) {
 			const group = this.currentLyricGroups[i];
 			const instruction = result.lineInstructions[i];
 			const curPos = instruction.y;
 			const isInViewport = instruction.isInViewport;
 			const isActive = this.resolveIsActive(i, snapshot);
+			const isEnteringAfterInitialLayout =
+				this.hasCompletedInitialLayout &&
+				(i < previousWindowStart || i >= previousWindowEnd);
 
 			// 设置样式
 			group.setTransform(
 				curPos,
-				strategy.snapPosY,
+				strategy.snapPosY || isEnteringAfterInitialLayout,
 				delay,
 				isActive,
 				this.resolveOpacity(i, isInViewport, snapshot),
 				this.resolveBlurLevel(i, isActive, isInViewport, snapshot),
+				isEnteringAfterInitialLayout,
 			);
 
 			// 应用阶梯式的动画延迟
@@ -966,7 +1000,7 @@ export abstract class LyricPlayerBase
 			result.bottomLineY,
 			// 底栏按「末行之后的一行」索引计算模糊度
 			this.resolveBlurLevel(
-				activeCount,
+				this.currentLyricGroups.length,
 				isBottomFocused,
 				result.isBottomLineInViewport,
 				snapshot,
@@ -1074,7 +1108,8 @@ export abstract class LyricPlayerBase
 			...params,
 		};
 		this.bottomLine.lineTransforms.posY.updateParams(this.posYSpringParams);
-		for (const group of this.currentLyricGroups) {
+		for (let i = this.layoutWindowStart; i < this.layoutWindowEnd; i++) {
+			const group = this.currentLyricGroups[i];
 			group.posY.updateParams(this.posYSpringParams);
 			group.bgSlideY.updateParams(this.posYSpringParams);
 		}
@@ -1093,13 +1128,24 @@ export abstract class LyricPlayerBase
 			...this.scaleForBGSpringParams,
 			...params,
 		};
-		for (const group of this.currentLyricGroups) {
+		for (let i = this.layoutWindowStart; i < this.layoutWindowEnd; i++) {
+			const group = this.currentLyricGroups[i];
 			group.mainLine.lineTransforms.scale.updateParams(this.scaleSpringParams);
 
 			group.bgLine?.lineTransforms.scale.updateParams(
 				this.scaleForBGSpringParams,
 			);
 		}
+	}
+
+	/** 将播放器缓存的弹簧参数应用到刚进入活动窗口的歌词组 */
+	private applySpringParamsToGroup(group: LyricLineGroupBase): void {
+		group.posY.updateParams(this.posYSpringParams);
+		group.bgSlideY.updateParams(this.posYSpringParams);
+		group.mainLine.lineTransforms.scale.updateParams(this.scaleSpringParams);
+		group.bgLine?.lineTransforms.scale.updateParams(
+			this.scaleForBGSpringParams,
+		);
 	}
 	/**
 	 * 暂停部分效果演出，目前会暂停播放间奏点的动画，且将背景歌词显示出来
@@ -1145,8 +1191,8 @@ export abstract class LyricPlayerBase
 
 		if (this.getEnableSpring()) {
 			if (!this.bottomLine.lineTransforms.posY.arrived()) return true;
-			for (const group of this.currentLyricGroups) {
-				if (group.getNeedsUpdate()) return true;
+			for (let i = this.layoutWindowStart; i < this.layoutWindowEnd; i++) {
+				if (this.currentLyricGroups[i]?.getNeedsUpdate()) return true;
 			}
 		}
 

@@ -231,12 +231,10 @@ export class DomLyricPlayer extends LyricPlayerBase {
 		}
 		if (!this.isPageVisible) return;
 		const d = Duration.fromMillis(delta);
-		for (const group of this.currentLyricGroups) {
-			group.update(d);
-		}
-
-		for (const group of this.currentLyricGroups) {
-			group.commitChanges();
+		for (let i = this.layoutWindowStart; i < this.layoutWindowEnd; i++) {
+			const group = this.currentLyricGroups[i];
+			group?.update(d);
+			group?.commitChanges();
 		}
 	}
 

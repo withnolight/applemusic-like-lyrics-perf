@@ -25,6 +25,8 @@ export abstract class LyricLineGroupBase<
 	 * @internal
 	 */
 	public groupIndex = -1;
+	/** 当前组是否处于布局计算器产出的活动窗口内 */
+	public isInLayoutWindow = false;
 
 	public posY: Spring = new Spring(0);
 	public bgSlideY: Spring = new Spring(-80);
@@ -70,6 +72,7 @@ export abstract class LyricLineGroupBase<
 		isActive: boolean,
 		opacity: number,
 		blur: number,
+		immediateLineTransform = false,
 	): void {
 		this.top = top;
 		this.delay = delay;
@@ -77,7 +80,7 @@ export abstract class LyricLineGroupBase<
 		this.opacity = opacity;
 		this.blur = blur;
 
-		this.setLineTransformations(delay);
+		this.setLineTransformations(delay, immediateLineTransform);
 
 		const enableSpring = this.lyricPlayer.getEnableSpring();
 		const alwaysPostposition =
@@ -99,7 +102,7 @@ export abstract class LyricLineGroupBase<
 		this.isUiDirty = true;
 	}
 
-	private setLineTransformations(delay: Duration) {
+	private setLineTransformations(delay: Duration, immediate: boolean) {
 		const enableScale = this.lyricPlayer.getEnableScale();
 		const isPlaying = this.lyricPlayer.getIsPlaying();
 
@@ -113,13 +116,13 @@ export abstract class LyricLineGroupBase<
 			mainScale = SCALE_ASPECT;
 		}
 
-		this.mainLine.setTransform(mainScale, 1, 0, delay, renderMode);
+		this.mainLine.setTransform(mainScale, 1, 0, delay, renderMode, immediate);
 
 		let bgScale = 100;
 		if (!this.isActive && isPlaying) {
 			bgScale = 75;
 		}
-		this.bgLine?.setTransform(bgScale, 1, 0, delay, renderMode);
+		this.bgLine?.setTransform(bgScale, 1, 0, delay, renderMode, immediate);
 	}
 
 	protected abstract renderStyles(): void;
@@ -151,6 +154,24 @@ export abstract class LyricLineGroupBase<
 				this.mainLine.getNeedsUpdate() ||
 				(this.bgLine?.getNeedsUpdate() ?? false))
 		);
+	}
+
+	/** 进入活动布局窗口 */
+	enterLayoutWindow(): void {
+		this.isInLayoutWindow = true;
+	}
+
+	/**
+	 * 离开活动布局窗口，并将所有逐帧动画推进到终态。
+	 * DOM 实现可覆盖此方法以同步卸载元素。
+	 */
+	leaveLayoutWindow(): void {
+		this.isInLayoutWindow = false;
+		this.posY.finish();
+		this.bgSlideY.finish();
+		this.mainLine.finishAnimations();
+		this.bgLine?.finishAnimations();
+		this.isUiDirty = true;
 	}
 
 	commitChanges(): void {
