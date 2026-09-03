@@ -31,6 +31,7 @@
 		"fmt": "biome format --write ./src",
 		"dev": "nx run @applemusic-like-lyrics/playground-core:dev",
 		"test": "vitest test",
+		"perf": "vitest bench benchmark/lyric-render.benchmark.ts --run",
 		"test:watch": "vitest test --watch",
 		"test:coverage": "vitest test --coverage"
 	},
