@@ -4,7 +4,10 @@
 
 English / [简体中文](./README-CN.md)
 
-[![Maintenance: Looking for Maintainers](https://img.shields.io/badge/Maintenance-Looking%20for%20Maintainers-orange)](https://github.com/amll-dev/applemusic-like-lyrics/issues/597)
+> [!NOTE]
+> This repository is a **performance-optimized version** of the upstream [AMLL/applemusic-like-lyrics](https://github.com/amll-dev/applemusic-like-lyrics) project. It exists to improve AMLL's runtime performance while preserving its original component ecosystem.
+>
+> This branch is maintained by **@withnolight**.
 
 </div>
 
@@ -31,11 +34,6 @@ Although the goal of this project is not to imitate it completely, it will polis
 [Projects that references AMLL](https://github.com/amll-dev/applemusic-like-lyrics/discussions/397)
 
 </div>
-
-> [!IMPORTANT]
-> 📢 **We are looking for co-maintainers!**  
-> Currently, the project has only one active maintainer with limited bandwidth. If you're interested in helping maintain AMLL, please check our [招募维护者 / Looking for Maintainers](https://github.com/amll-dev/applemusic-like-lyrics/issues/597) and [Contribution Guide](https://amll.dev/en/contribute).
-> You can also reach us via [QQ Group (678038548)](https://qm.qq.com/cgi-bin/qm/qr?k=BOmiF3QlYBCrvfpnBM_uHn5YOvT7B_SP&jump_from=webapi&authKey=OHl/VM/OfFEUF6IOXoW7ovJKvYeGrzZDsTx77cJtDPuLy7m+r/vXDBJ+FnFdjRSl) or [Discord Server](https://discord.com/invite/s53urK9v2G).
 
 ## AMLL Ecology and source code structure
 
